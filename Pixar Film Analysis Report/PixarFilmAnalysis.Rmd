@@ -18,7 +18,7 @@ between critical acclaim and commercial success. Our objective is to explore how
 audience perceptions and critic scores have evolved over the years and their 
 impact on the studio's financial performance.
 
-This report covers the first stage of our project: **Data Cleaning and Preparation**.
+The report is organised in four stages: **Data Cleaning and Preparation**, **Exploratory Data Analysis**, **Modeling**, and **Summary and Reflection**.
 
 
 ## 2. Data Cleaning and Preparation
@@ -30,11 +30,13 @@ To conduct a comprehensive analysis, we merge these datasets into a single "Mast
 
 Before merging, we inspect each dataset individually. 
 `pixar_films` contains 27 films with basic information: film number, name, release date, runtime, and rating. 
-`public_response` contains 24 films with critic scores from Rotten Tomatoes, Metacritic, CinemaScore, and Critics' Choice. 
-`box_office` also contains 24 films with budget and revenue data. 
+`public_response` contains 24 rows with critic scores from Rotten Tomatoes, Metacritic, CinemaScore, and Critics' Choice.
+`box_office` also contains 24 rows with budget and revenue data.
 
-We noticed that both `public_response` and `box_office` have only 24 rows compared to 27 in pixar_films — 
-this means 3 films do not have scores or financial data yet, likely the most recent unreleased ones. 
+We noticed that both `public_response` and `box_office` have only 24 rows compared to 27 in `pixar_films`.
+In addition, the 24th row in both tables (*Luca*) is present but entirely empty.
+As a result, **4 films** have no scores or financial data in this version of the package: *Luca* (2021), *Turning Red* (2022), *Lightyear* (2022), and a 2023 entry whose title is missing (`NA`).
+These are the most recent films at the time the package data was compiled; *Luca* and *Turning Red* were also released directly on Disney+, so they have no theatrical box office figures.
 
 We also notice that `number` is stored as text (`chr`) in `pixar_films` and will need to be fixed after merging. 
 We use `film` as the join key since it appears in all three tables.
@@ -52,8 +54,8 @@ str(pixar_box_office)
 
 ```
 After merging, the `master dataset` has 27 rows and 13 columns as expected. 
-The 3 films without scores or box office data remain in the dataset with `NA` values — this is intentional since we used `left_join`, 
-which keeps all rows from `pixar_film`s regardless of whether a match exists in the other tables.
+The 4 films without scores or box office data remain in the dataset with `NA` values — this is intentional since we used `left_join`,
+which keeps all rows from `pixar_films` regardless of whether a match exists in the other tables.
 
 ```{r data_merging}
 # Merging datasets using left_join to preserve the main film list
@@ -75,9 +77,9 @@ In this step we prepare the master dataset for analysis. First, we fix two data 
 
 We then check for duplicate films using ``count()`` — no duplicates were found, confirming each film appears exactly once. 
 
-Next, we remove the 3 unreleased films using ``drop_na(rotten_tomatoes)`` since they have no critic scores or box office data, making them unsuitable for analysis. 
+Next, we remove the 4 films without data (*Luca*, *Turning Red*, *Lightyear* and the untitled 2023 entry) using ``drop_na(rotten_tomatoes)``, since they have no critic scores or box office data, making them unsuitable for analysis.
 
-Finally, we rename ``film`` to ``movie_title`` for clarity. The missing value audit confirms that only ``cinema_score`` (1 missing) and ``critics_choice`` (2 missing) still contain ``NA`` values — these are kept intentionally as they represent early films that were not reviewed by those sources.
+Finally, we rename ``film`` to ``movie_title`` for clarity. The missing value audit shows that three columns still contain ``NA`` values: ``critics_choice`` (2 missing — the two earliest films, *Toy Story* and *A Bug's Life*, have no score in the source data), ``cinema_score`` (1 missing — *Soul*) and ``box_office_us_canada`` (1 missing — *Soul*, which was released directly on Disney+ in the US). These are kept intentionally, because removing them would mean losing otherwise complete films.
 
 
 ```{r}
@@ -122,11 +124,11 @@ pixar_clean %>%
 ### 2.3. Reasoning and Data Quality Check
 As part of our quality checklist, we summarize the key decisions made during the cleaning process:
 
-ID Uniqueness:We verified using count() that each film appears exactly once in the dataset. No duplicate rows were found.
+- **ID Uniqueness:** We verified using `count()` that each film appears exactly once in the dataset. No duplicate rows were found.
 
-Missing Observations: We removed 3 unreleased films using drop_na(rotten_tomatoes) since they had no critic scores or box office data. The remaining missing values in cinema_score and critics_choice were kept intentionally — they represent early films not covered by those sources, and removing them would mean losing valuable box office and rating data for well-known films.
+- **Missing Observations:** We removed 4 films (*Luca*, *Turning Red*, *Lightyear* and an untitled 2023 entry) using `drop_na(rotten_tomatoes)` since they had no critic scores or box office data. The remaining missing values in `critics_choice` (*Toy Story*, *A Bug's Life*), `cinema_score` (*Soul*) and `box_office_us_canada` (*Soul*) were kept intentionally — removing them would mean losing valuable box office and rating data for well-known films.
 
-Data Type Corrections: number was converted from text to integer and "N/A" in film_rating was replaced with a proper NA using na_if().
+- **Data Type Corrections:** `number` was converted from text to integer and `"N/A"` in `film_rating` was replaced with a proper `NA` using `na_if()`.
 
 
 This "Master Dataset" contains 23 films and 13 variables and is now ready for the next phase of our analytical report.
@@ -179,6 +181,8 @@ pixar_eda %>%
 
 Next, we create three variables related to financial performance and critical reception. `roi` measures the return on investment as a percentage, calculated by dividing `profit` by budget and multiplying by 100 — for example, Toy Story achieved an ROI of over 1100%, reflecting its enormous commercial success relative to its budget. `avg_critic_score` takes the average of `rotten_tomatoes` and `metacritic` to create a single combined critic score for each film. Finally, `commercial_success` uses `if_else()` to create a simple yes/no flag indicating whether a film made a profit.
 
+Note that `profit` here is a simplified measure: it is worldwide gross minus production budget. It ignores marketing costs and the share of ticket revenue kept by cinemas, so it overstates the studio's actual return. It is used as a consistent relative measure across films rather than as true accounting profit.
+
 ```{r}
 pixar_eda <- pixar_eda %>%
   mutate(
@@ -198,7 +202,7 @@ pixar_eda %>%
   head(10)
 ```
 
-In the final group of new variables, we create four categorical columns. `era` uses `case_when()` to divide Pixar's history into three periods — Early Pixar (up to 2005), Golden Age (2006 to 2012), and Modern Pixar (2013 onwards) — reflecting distinct phases in the studio's creative and commercial development. `runtime_category` classifies each film as Short (under 95 minutes), Medium (95 to 110 minutes), or Long (over 110 minutes). `is_sequel` is to flag films whose titles contain numbers or roman numerals, identifying sequels in the franchise. Finally, `budget_category` groups films into Low, Medium, and High budget tiers based on their production budget.
+In the final group of new variables, we create four categorical columns. `era` uses `case_when()` to divide Pixar's history into three periods — Early Pixar (up to 2005), Golden Age (2006 to 2012), and Modern Pixar (2013 onwards) — reflecting distinct phases in the studio's creative and commercial development. `runtime_category` classifies each film as Short (under 95 minutes), Medium (95 to 110 minutes), or Long (over 110 minutes). `is_sequel` flags films that continue an existing franchise. We define it with an explicit list rather than by searching titles for numbers, because a title-based rule misses *Monsters University* (a prequel to *Monsters, Inc.*) and *Finding Dory* (a sequel to *Finding Nemo*). Finally, `budget_category` groups films into Low (under \$100M), Medium (\$100M–\$175M), and High (over \$175M) budget tiers based on their production budget.
 
 ```{r}
 pixar_eda <- pixar_eda %>%
@@ -217,9 +221,12 @@ pixar_eda <- pixar_eda %>%
       TRUE ~ "Long"
     ),
     
-    # 9. sequel or not
+    # 9. sequel or not (explicit list: title patterns miss Monsters University and Finding Dory)
     is_sequel = if_else(
-      str_detect(movie_title, "2|3|4|II|III"), "Yes", "No"
+      movie_title %in% c("Toy Story 2", "Toy Story 3", "Toy Story 4",
+                         "Cars 2", "Cars 3", "Monsters University",
+                         "Finding Dory", "Incredibles 2"),
+      "Yes", "No"
     ),
     
     # 10. Budget category
@@ -247,12 +254,12 @@ pixar_eda %>%
   summary()
 ```
   
-In the previous step we notice that `Soul` has a missing value in `box_office_us_canada` while `box_office_worldwide` is available. This film also recorded a negative profit of approximately -$39 million, making it the only film in the dataset to have lost money.
+In the previous step we notice that the minimum `profit` is negative. Two films lost money by this measure: *Soul* (about -\$39.6 million) and *Onward* (about -\$33.0 million). Both were released in 2020 and affected by the COVID-19 pandemic: *Onward* had its theatrical run cut short when cinemas closed in March 2020, and *Soul* skipped US cinemas entirely and went straight to Disney+. This also explains why *Soul* has a missing value in `box_office_us_canada` — its `box_office_worldwide` figure only contains international revenue.
 
 ```{r}
-# which film has missing box office data
+# which films lost money, and which film has missing box office data
 pixar_eda %>%
-  filter(is.na(box_office_us_canada)) %>%
+  filter(profit < 0 | is.na(box_office_us_canada)) %>%
   select(movie_title, budget, box_office_us_canada, box_office_worldwide, profit, roi)
 ```
 
@@ -269,11 +276,11 @@ pixar_eda %>%
   )
 ```
 
-Early Pixar films had the highest critic scores on both Rotten Tomatoes (97.3) and Metacritic (86.5). The ROI was also highest in this period at 610%, meaning early films made back much more money relative to their budget. 
+Early Pixar films had the highest critic scores on both Rotten Tomatoes (97.3) and Metacritic (86.5). The ROI was also highest in this period at about 611%, meaning early films made back much more money relative to their budget.
 
-Modern Pixar has the most films (10) but the lowest Metacritic score (75) and lowest ROI (256%). 
+Modern Pixar has the most films (10) but the lowest Metacritic score (75) and lowest ROI (256%). Its averages are pulled down by the two pandemic-era films, *Onward* and *Soul*.
 
-Interestingly, the average profit is very similar across all three eras — around $470-490 million — suggesting that while critic scores and ROI have declined, Pixar films have remained consistently 
+Interestingly, the average profit is very similar across all three eras — around \$470–490 million — suggesting that while critic scores and ROI have declined, Pixar films have remained consistently profitable in absolute terms. Note that box office figures are not adjusted for inflation, which favours later films in absolute comparisons.
 
 
 ```{r}
@@ -288,7 +295,7 @@ pixar_eda %>%
   )
 ```
 
-Sequels earn more profit on average ($626 million vs $427 million for originals), likely because they already have an established audience. However the ROI is almost identical between the two groups.
+The dataset contains 8 sequels/prequels and 15 original films. Sequels earn more profit on average (about \$641 million vs \$393 million for originals), possibly because they already have an established audience. However, sequels also have larger budgets, so the ROI is practically identical between the two groups (about 354% each). Sequels also have a lower average Rotten Tomatoes score (83.9 vs 92.0).
 
 ### 3.3 Charts 
 
@@ -305,9 +312,9 @@ ggplot(pixar_eda, aes(x = rotten_tomatoes)) +
   ) +
   theme_minimal()
 ```
-- Most films score between 80 and 100 — the bars are tallest on the right side
-- There is one film scoring around 40-50 — that's the outlier we noticed earlier
-- The distribution is left skewed — most Pixar films are very well reviewed, with only a few scoring below 70
+- Most films score above 85 — 17 of the 23 films fall in the two highest bins
+- There is one clear low outlier: *Cars 2*, with a score of 40
+- The distribution is left skewed — most Pixar films are very well reviewed, with only two films (*Cars 2* and *Cars 3*) scoring below 70
 
 Chart 2: Critic Scores Over Time
 We create this chart to see whether Pixar's critical reception has changed over the years.
@@ -323,7 +330,7 @@ ggplot(pixar_eda, aes(x = release_year, y = rotten_tomatoes)) +
   ) +
   theme_minimal()
 ```
-The scatterplot shows that Pixar's earliest films were consistently highly rated, with most scoring above 90. The most recent films show two clear outliers with notably lower scores.
+The scatterplot shows that Pixar's earliest films were consistently highly rated, with all films before 2006 scoring above 90. From 2006 onwards scores become more variable: the two clear low outliers are *Cars 2* (2011, score 40) and *Cars 3* (2017, score 69), while several later films such as *Inside Out*, *Coco* and *Soul* still score above 95.
 
 
 Chart 3: Average Profit by Era
@@ -361,9 +368,11 @@ ggplot(pixar_eda, aes(x = budget_category, y = roi)) +
   theme_minimal()
 ```
 
-The boxplot shows that low budget films achieved the highest median ROI, with a wide spread indicating that some films in this category performed exceptionally well relative to their cost. 
+The boxplot shows that low budget films achieved the highest median ROI (about 707%), with a wide spread indicating that some films in this category performed exceptionally well relative to their cost (*Toy Story* reached 1145%).
 
-High and medium budget films show lower and more consistent returns, suggesting that bigger budgets do not necessarily lead to better financial efficiency.
+High and medium budget films show lower returns (median ROI about 343% and 285%), suggesting that bigger budgets do not necessarily lead to better financial efficiency. The medium category contains the two loss-making films, *Onward* and *Soul*.
+
+This comparison should be read with care: the low budget group contains only 4 films, all from the Early Pixar era (1995–2004), and budgets are not adjusted for inflation. The difference therefore partly reflects the era rather than budget size alone.
 
 
 Chart 5: Budget vs Worldwide Box Office
@@ -380,9 +389,9 @@ ggplot(pixar_eda, aes(x = budget / 1000000, y = box_office_worldwide / 1000000))
   ) +
   theme_minimal()
 ```
-he scatterplot shows a general positive relationship between budget and worldwide box office revenue — films with higher budgets tend to earn more. However the relationship is not perfectly linear. 
+The scatterplot shows a positive but weak relationship between budget and worldwide box office revenue (correlation ≈ 0.34) — films with higher budgets tend to earn somewhat more, but there is a lot of variation at every budget level.
 
-There is also one high budget film that underperformed at the box office, which we identified earlier as Soul.
+Two \$175 million films clearly underperformed at the box office, earning less than their budget: *Onward* and *Soul*, which we identified earlier as the pandemic-affected releases.
 
 Chart 6: Profit Comparison Between Sequels and Original Films
 We create this chart to compare the financial performance of sequels versus original films. 
@@ -398,11 +407,11 @@ ggplot(pixar_eda, aes(x = is_sequel, y = profit / 1000000)) +
   ) +
   theme_minimal()
 ```
-The boxplot confirms that sequels tend to generate higher profits than original films, with a higher median and a wider spread suggesting some sequels performed exceptionally well. 
+The boxplot confirms that sequels tend to generate higher profits than original films, with a clearly higher median (about \$686 million vs \$354 million). Sequels also show a wide spread, from *Cars 3* (about \$209 million) to *Incredibles 2* (over \$1 billion).
 
-Original films show more variation, including one outlier close to zero profit at the bottom of the chart. 
+Original films extend lower, reaching below zero with the two loss-making films *Onward* and *Soul* at the bottom of the chart.
 
-All sequels in the dataset made a positive profit, while original films show more financial risk.
+All sequels in the dataset made a positive profit, while original films show more financial risk. With only 8 sequels, however, this pattern should not be over-interpreted.
 
 
 Chart 7: Distribution of Film Ratings
@@ -420,7 +429,7 @@ ggplot(pixar_eda, aes(x = film_rating)) +
   theme_minimal()
 ```
 
-The bar chart shows that Pixar films are almost evenly split between G and PG ratings, with PG films slightly more common. 
+The bar chart shows that Pixar films are fairly evenly split between G and PG ratings, with G films slightly more common (13 G vs 10 PG).
 
 
 Chart 8: Distribution of Film Runtime
@@ -436,9 +445,9 @@ ggplot(pixar_eda, aes(x = run_time)) +
   ) +
   theme_minimal()
 ```
-Most films fall between 90 and 110 minutes — the tallest bars are in this range
-The peak is around 95-105 minutes with 9 films
-A few films are shorter around 80 minutes and a few longer around 115-125 minutes
+- Most films fall between 85 and 105 minutes — 17 of the 23 films are in this range
+- The peak is the 95–105 minute bin with 11 films
+- Only one film is noticeably shorter (*Toy Story*, 81 minutes) and only two are longer than 115 minutes (*Cars*, 117 and *Incredibles 2*, 118)
 
 
 Chart 9: Average Critic Score by Era
@@ -482,7 +491,7 @@ The scatterplot shows a positive relationship between Rotten Tomatoes and Metacr
 Metacritic scores are generally lower than Rotten Tomatoes scores, and the outlier in the bottom left shows a film that scored poorly on both platforms. 
 
 
-Overall, the EDA reveals that Pixar films are generally profitable and well reviewed. Early films had the highest critic scores and ROI, sequels earn more than originals, and higher budgets tend to lead to higher box office revenue. These findings will guide our modeling section.
+Overall, the EDA reveals that Pixar films are generally profitable and well reviewed. Early films had the highest critic scores and ROI, sequels earn more than originals in absolute terms (but not in ROI), and higher budgets tend to go together with somewhat higher box office revenue. These findings will guide our modeling section.
 
 
 
@@ -521,9 +530,9 @@ cat("Testing set:", nrow(pixar_test), "films\n")
 
 ```
 
-Since our dataset is small (23 films), the training set contains 17 films and the testing set contains 6. 
+Since our dataset is small (23 films), the training set contains 17 films and the testing set contains 6.
 
-This is a limitation of this dataset when evaluating the model.
+This is a limitation of this dataset when evaluating the model: with only 6 test films, the test metrics depend heavily on which films happen to land in the test set.
 
 
 ```{r}
@@ -541,9 +550,10 @@ summary(lm_fit$fit)
 
 ```
 The `budget` coefficient has a p-value of 0.0025, which is well below 0.05, 
-meaning it is statistically significant and a reliable predictor of box office revenue. 
-The estimate of 4.38 means that for every extra dollar spent on budget, 
-the film earns approximately $4.38 more at the box office.
+meaning it is statistically significant in the training data.
+The estimate of 4.38 means that, holding critic scores constant, each extra dollar of budget
+is associated with approximately \$4.38 more at the worldwide box office.
+This is an association, not a causal effect — bigger budgets also tend to go to franchise films and sequels.
 
 
 The `metacritic` coefficient has a p-value of 0.0255, 
@@ -556,8 +566,10 @@ meaning it is not statistically significant.
 We cannot conclude that Rotten Tomatoes score has a meaningful effect on box office revenue 
 when budget and Metacritic are already included in the model.
 
-The R-squared value of 0.58 means the model explains 58% of the variation in worldwide box office revenue. 
-The overall model p-value of 0.008 confirms the model as a whole is statistically significant.
+The R-squared value of 0.58 means the model explains 58% of the variation in worldwide box office revenue in the training data
+(adjusted R-squared 0.48, which accounts for the number of predictors).
+The overall F-test (F = 6.02 on 3 and 13 degrees of freedom, p = 0.008) indicates the model as a whole is statistically significant.
+With only 17 training films, however, these estimates are fragile.
 
 
 ```{r}
@@ -584,10 +596,11 @@ When we evaluate the model on the 6 test films, the results are weaker than on t
 The R-squared drops from 0.58 on the training set to just 0.065 on the test set, 
 meaning the model explains very little of the variation in box office revenue for unseen films. 
 
-The RMSE of $356 million means predictions are off by that amount on average. 
-The large gap between training and test performance is likely due to two reasons 
-— the very small dataset of only 23 films makes it difficult to build a reliable model, 
-and Soul is an extreme outlier in the test set, having earned far less than expected due to its unusual release circumstances.
+The RMSE is about \$356 million and the MAE about \$260 million, meaning a typical prediction is off by several hundred million dollars.
+The large gap between training and test performance is likely due to two reasons
+— the very small dataset of only 23 films makes it difficult to build a reliable model,
+and *Soul* is an extreme outlier in the test set: the model predicted about \$799 million, while it earned only \$135 million because it skipped US cinemas during the pandemic.
+*WALL-E* was also heavily over-predicted (about \$1.04 billion predicted vs \$521 million actual).
 
 These results highlight the limitations of modeling with such a small dataset.
 
@@ -650,11 +663,17 @@ summary(log_fit$fit)
 The logistic regression results show that none of the predictors — 
 `budget`, `rotten_tomatoes`, `metacritic`, or `run_time` — are statistically significant, as all p-values are well above 0.05. 
 
-This means we cannot reliably predict commercial success from these variables. 
-However this result is not surprising given the nature of the data — 
-almost all Pixar films in our dataset made a profit, with only one exception (Soul). 
-When nearly all outcomes are the same (Yes), the model has very little variation to learn from, 
-making it very difficult to identify meaningful predictors.
+This means we cannot reliably predict commercial success from these variables.
+However this result is not surprising given the nature of the data —
+almost all Pixar films in our dataset made a profit, with only two exceptions (*Onward* and *Soul*).
+After the stratified split, only one of them (*Soul*) is in the training set, so the model is fitted on 16 "Yes" films and a single "No" film.
+When nearly all outcomes are the same (Yes), the model has very little variation to learn from,
+making it very difficult to identify meaningful predictors. The residual deviance (5.94) is only slightly lower than the null deviance (7.61),
+confirming that the predictors add very little information.
+
+Note on interpretation: because "Yes" is set as the first factor level, `glm()` models the probability of the *second* level, "No".
+The coefficient signs above therefore describe the log-odds of a film **not** being commercially successful.
+`parsnip` takes this into account automatically when producing `.pred_Yes` and `.pred_No`, so the predictions below are correct.
 
 ```{r}
 # Predictions
@@ -682,7 +701,9 @@ The model correctly predicted 5 out of 6 films, achieving an accuracy of 83.3%.
 However this result should be interpreted carefully. 
 The model predicted "Yes" for every single film, 
 which means it did not actually learn to distinguish between successful and unsuccessful films — 
-it simply defaulted to the majority class. Onward was the only film predicted incorrectly. 
+it simply defaulted to the majority class. *Onward*, the only unprofitable film in the test set, was the only film predicted incorrectly.
+In other words, the model never correctly identified a loss-making film (sensitivity for the "No" class is 0%),
+and a naive rule of always predicting "Yes" would achieve exactly the same 83.3% accuracy.
 
 This confirms what we saw in the coefficients — with almost all films being commercially successful, 
 the model has very little to learn from and the high accuracy is misleading rather than meaningful.
@@ -696,17 +717,18 @@ Predicting ability: The linear regression model showed a reasonable fit on the t
 but performed poorly on the test set (R-squared = 0.065), with an average prediction error of $356 million. 
 The logistic regression model achieved 83.3% accuracy but only by predicting "Yes" for every film, which is not genuinely useful.
 
-Statistical significance: In the linear regression model, budget and metacritic were statistically significant predictors. 
+Statistical significance: In the linear regression model, budget and metacritic were statistically significant predictors on the training data.
 In the logistic regression model, none of the predictors were statistically significant.
 
 Limitations: Both models are heavily limited by the small dataset of only 23 films. 
 With so few observations, it is difficult to build reliable models that generalize well to new data. 
-The logistic regression was further limited by class imbalance — almost all films were commercially successful, 
+The logistic regression was further limited by class imbalance — only 2 of 23 films lost money,
 leaving very little variation for the model to learn from.
 
-Conclusion: Between the two models, linear regression performed better in terms of meaningful results. 
-It identified budget and Metacritic score as significant predictors of box office revenue, 
-which aligns with our EDA findings. 
+Conclusion: Between the two models, linear regression produced more meaningful results.
+It identified budget and Metacritic score as significant predictors of box office revenue in the training data,
+which aligns with our EDA findings. However, its weak test performance (R-squared = 0.065) shows that these relationships
+do not yet translate into reliable predictions for new films.
 The logistic regression was not able to produce useful predictions given the nature of the data.
 
 
@@ -716,14 +738,14 @@ The logistic regression was not able to produce useful predictions given the nat
 ### 5.1 Project Summary and Main Findings
 In this project, we analyzed the Pixar Film Ratings dataset to explore the relationship between critical acclaim, budget, and commercial success. We successfully integrated three distinct tables into a clean Master Dataset, engineered 10 new variables (such as `profit`, `roi`, `era`, and `is_sequel`), and visualized key industry trends. 
 
-Our main findings indicate that while early Pixar films achieved the highest critical scores and Return on Investment (ROI), the studio has maintained remarkably consistent absolute profit margins across all its eras. Furthermore, our exploratory data analysis and linear regression model confirmed that production budget and Metacritic scores are statistically significant predictors of a film's worldwide box office revenue.
+Our main findings indicate that while early Pixar films achieved the highest critical scores and Return on Investment (ROI), the studio has maintained remarkably consistent average absolute profit (around \$470–490 million per film) across all its eras. Furthermore, in our linear regression model, production budget and Metacritic score were statistically significant predictors of a film's worldwide box office revenue on the training data — although the model did not generalise well to the test films.
 
 ### 5.2 Difficulties and Limitations
 The most difficult part of the project was building reliable predictive models. Our dataset was extremely small (only 23 films after cleaning), which severely limited our models' ability to generalize. This was evident in our linear regression model, which fit the training data well but performed poorly on the test set. 
 
-Additionally, modeling commercial success using logistic regression was highly challenging due to extreme class imbalance. Because almost every Pixar film in history has been profitable, the model had almost no "unsuccessful" examples to learn from, resulting in a misleadingly high accuracy where the model simply predicted "Yes" for everything. Finally, dealing with outliers—specifically the film *Soul*, which had an unusual release context and was the only unprofitable film—significantly skewed our test predictions.
+Additionally, modeling commercial success using logistic regression was highly challenging due to extreme class imbalance. Because almost every Pixar film in history has been profitable, the model had almost no "unsuccessful" examples to learn from, resulting in a misleadingly high accuracy where the model simply predicted "Yes" for everything. Finally, dealing with outliers — specifically the pandemic-era films *Onward* and *Soul*, which had unusual release contexts and were the only two unprofitable films — significantly skewed our test predictions (*Soul* in the linear model, *Onward* in the logistic model).
 
 ### 5.3 Reflection and Future Improvements
-The most interesting part of the analytical process was discovering the financial dynamics of sequels versus original films. It was fascinating to see that while sequels reliably generate higher absolute profits due to established fanbases, their actual financial efficiency (ROI) is almost identical to riskier original films.
+The most interesting part of the analytical process was discovering the financial dynamics of sequels versus original films. It was fascinating to see that while sequels generated higher absolute profits in our data (possibly helped by established fanbases), their actual financial efficiency (ROI) is almost identical to riskier original films, because they also cost more to make.
 
 If we were to start this project again, or if we had more time and resources, we would not limit ourselves to just Pixar. We would expand our dataset to include all Walt Disney Animation Studios and DreamWorks Animation films. This would dramatically increase our sample size, introduce a balanced mix of profitable and unprofitable films for our logistic regression, and allow us to build much more robust and trustworthy machine learning models.
